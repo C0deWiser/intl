@@ -15,7 +15,7 @@ intl(now())->full();
 intl(now())->fullTime();
 # 3:30:42pm PST
 
-$interval = now()->diffAsCarbonInterval(now()->addHour());
+$interval = now()->toPeriod(now()->addHour());
 intl($interval)->long();
 # January 12, 1952 from 3:30:30pm to 4:30:30pm
 ```
