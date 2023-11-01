@@ -1,0 +1,25 @@
+{
+    "name": "codewiser/intl",
+    "description": "Internationalization Helper",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Codewiser\\Intl\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "authors": [
+        {
+            "name": "pm",
+            "email": "pm@101media.ru"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "php": "^8.0",
+        "laravel/framework": "^10.0"
+    }
+}
