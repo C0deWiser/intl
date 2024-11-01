@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property array $i18n
  *
  * @mixin Model
+ * @deprecated
  */
 trait HasLocalizations
 {

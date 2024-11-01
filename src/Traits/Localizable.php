@@ -4,6 +4,9 @@ namespace Codewiser\Intl\Traits;
 
 use Illuminate\Container\Container;
 
+/**
+ * @deprecated
+ */
 trait Localizable
 {
     /**

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Casts json attribute as multilingual.
+ * @deprecated
  */
 class AsMultiLingual implements CastsAttributes
 {

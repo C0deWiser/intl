@@ -27,19 +27,19 @@ intl($interval)->long();
 Such attribute stores in a database as a json object.
 
 ```php
-use \Illuminate\Database\Eloquent\Model;
-use \Codewiser\Intl\Casts\AsMultiLingual;
-use \Codewiser\Intl\Traits\HasLocalizations;
+use Illuminate\Database\Eloquent\Model;
+use Codewiser\Intl\Casts\Multilingual;
+use Illuminate\Support\Traits\Localizable;
 
 /**
- * @property string $name 
+ * @property Multilingual $name 
  */
 class User extends Model
 {
-    use HasLocalizations;
+    use Localizable;
     
     protected $casts = [
-        'name' => AsMultiLingual::class
+        'name' => Multilingual::class
     ];
 }
 ```
@@ -51,11 +51,22 @@ A new value will be implicitly stored in a current locale.
 However, you may explicitly define locale.
 
 ```php
-$user->withLocale('en', fn(User $user) => $user->name = 'Michael');
-$user->withLocale('es', fn(User $user) => $user->name = 'Miguel');
+// Set value in default locale
+$user->name = 'Michael';
+
+// Set value with explicit locale
+$user->withLocale('en', fn() => $user->name = 'Michael');
+$user->withLocale('es', fn() => $user->name = 'Miguel');
+
+// Set values as array
+$user->name = [
+    'en' => 'Michael',
+    'es' => 'Miguel',
+];
 ```
 
 ### Reading
+
 A value will be implicitly retrieved in a current locale. It would be enough 
 to properly apply `Accept-Language` header from a User-Agent — and user will 
 get content in a preferred language.
@@ -66,6 +77,14 @@ returned.
 You may explicitly define locale.
 
 ```php
-$nameInEn = $user->withLocale('en', fn(User $user) => $user->name);
-$nameInEs = $user->withLocale('es', fn(User $user) => $user->name);
+// Get value in default locale
+$nameInCurrentLocale = (string) $user->name;
+$nameInCurrentLocale = $user->name->toString();
+
+// Get value in given locale
+$nameInEn = $user->withLocale('en', fn() => $user->name);
+$nameInEs = $user->withLocale('es', fn() => $user->name);
+
+// Get all values
+$user->name->toArray();
 ```
