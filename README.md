@@ -22,6 +22,21 @@ intl($interval)->long();
 # January 12, 1952 from 3:30:30pm to 4:30:30pm
 ```
 
+## Number formatting
+
+Format numbers in an app current locale.
+
+```php
+intl(100)->currency('RUB');
+# €101.00
+
+intl(0.9)->percent();
+# 90 %
+
+intl(101)->spellout();
+# one hundred one
+```
+
 ## Multilingual model attributes
 
 Such attribute stores in a database as a json object.
