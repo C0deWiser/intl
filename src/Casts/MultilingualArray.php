@@ -7,6 +7,9 @@ use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * MultilingualArray attribute holds an array of Multilingual.
+ */
 class MultilingualArray implements Castable
 {
     public static function castUsing(array $arguments): CastsAttributes

@@ -41,6 +41,16 @@ class MultilingualTest extends TestCase
 
         Multilingual::useLocale('it');
         $this->assertEquals('one', $alt->toString());
+
+        // Arrays
+
+        $alt = new Multilingual([
+            'ru' => ['one', 'two']
+        ]);
+
+        Multilingual::useLocale('it');
+        $this->assertEquals(['one', 'two'], $alt->toString());
+        $this->assertEquals('["one","two"]', (string)$alt);
     }
 
     public function testCastGet()
@@ -49,8 +59,8 @@ class MultilingualTest extends TestCase
         $cast = Multilingual::castUsing([]);
 
         $value = [
-            'ru' => Factory::create('ru')->company(),
-            'en' => Factory::create('en')->company(),
+            'ru' => Factory::create('ru_RU')->company(),
+            'en' => Factory::create('en_GB')->company(),
         ];
 
         // json превращается в объект
@@ -60,6 +70,19 @@ class MultilingualTest extends TestCase
         // null остается null
         $casted = $cast->get(new TestMultilingualModel(), 'name', null, ['name' => null]);
         $this->assertNull($casted);
+
+        // Arrays
+
+        $value = [
+            'ru' => [
+                Factory::create('ru_RU')->company(),
+                Factory::create('ru_RU')->company()
+            ]
+        ];
+
+        // json превращается в объект
+        $casted = $cast->get(new TestMultilingualModel(), 'name', json_encode($value), ['name' => json_encode($value)]);
+        $this->assertEquals(new Multilingual($value), $casted);
     }
 
     public function testCastSet()
@@ -96,6 +119,27 @@ class MultilingualTest extends TestCase
         // null остается null
         $casted = $cast->set(new TestMultilingualModel(), 'name', null, ['name' => null]);
         $this->assertNull($casted);
+
+        // Arrays
+
+        $value = [
+            'ru' => [
+                Factory::create('ru_RU')->company(),
+                Factory::create('ru_RU')->company()
+            ]
+        ];
+
+        $ru = [
+            Factory::create('ru_RU')->company(),
+            Factory::create('ru_RU')->company()
+        ];
+
+        // Заменяет значение и возвращается json
+        $casted = $cast->set(new TestMultilingualModel(), 'name', $ru, ['name' => json_encode($value)]);
+        $this->assertEquals(json_encode([
+            'ru' => $ru
+        ]), $casted);
+
     }
 
     public function testLocale()

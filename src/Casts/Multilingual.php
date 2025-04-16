@@ -11,6 +11,15 @@ use Illuminate\Database\Eloquent\Casts\Json;
 use Illuminate\Database\Eloquent\Model;
 use JsonSerializable;
 
+/**
+ * Multilingual attribute holds an array of localized values:
+ *
+ * [
+ *  'en' => 'Michael',
+ *  'ru' => 'Михаил',
+ *  'es' => 'Miguel'
+ * ]
+ */
 class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 {
     protected array $values = [];
@@ -53,13 +62,19 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 
     public function __toString(): string
     {
-        return $this->toString();
+        $value = $this->toString();
+
+        if (is_array($value)) {
+            $value = json_encode($value);
+        }
+
+        return (string) $value;
     }
 
     /**
      * Get value in current locale.
      */
-    public function toString(): string
+    public function toString(): mixed
     {
         $values = $this->values;
 
@@ -93,11 +108,16 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 
         reset($values);
 
-        return trim(
+        $value =
             $search($this->values, $this->getLocale()) ??
             $search($this->values, $this->getFallbackLocale()) ??
-            current($values) ?? ''
-        );
+            current($values) ?? '';
+
+        if (is_string($value)) {
+            $value = trim($value);
+        }
+
+        return $value;
     }
 
     /**
@@ -140,7 +160,7 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
         return $this->values;
     }
 
-    public function jsonSerialize(): ?string
+    public function jsonSerialize(): mixed
     {
         return $this->isEmpty() ? null : $this->toString();
     }
@@ -199,7 +219,7 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
                     $value = $value->toArray();
                 }
 
-                if (is_array($value)) {
+                if (is_array($value) && !array_is_list($value)) {
                     // Full replace
                     $values = $value;
                 } else {
