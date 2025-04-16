@@ -10,6 +10,7 @@ use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Database\Eloquent\Casts\Json;
 use Illuminate\Database\Eloquent\Model;
 use JsonSerializable;
+use ReturnTypeWillChange;
 
 /**
  * Multilingual attribute holds an array of localized values:
@@ -19,6 +20,8 @@ use JsonSerializable;
  *  'ru' => 'Михаил',
  *  'es' => 'Miguel'
  * ]
+ *
+ * @template TType
  */
 class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 {
@@ -45,7 +48,10 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
         return locale_canonicalize(self::$fallbackLocale ?? 'en');
     }
 
-    public function __construct(null|string|array|Arrayable $values)
+    /**
+     * @param  null|TType|array<string,TType>|Arrayable<string,TType>  $values
+     */
+    public function __construct($values)
     {
         if (is_string($values)) {
             $values = [$this->getLocale() => $values];
@@ -62,7 +68,7 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 
     public function __toString(): string
     {
-        $value = $this->toString();
+        $value = $this->toString() ?? '';
 
         if (is_array($value)) {
             $value = json_encode($value);
@@ -73,8 +79,10 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 
     /**
      * Get value in current locale.
+     *
+     * @return null|TType
      */
-    public function toString(): mixed
+    public function toString()
     {
         $values = $this->values;
 
@@ -111,7 +119,7 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
         $value =
             $search($this->values, $this->getLocale()) ??
             $search($this->values, $this->getFallbackLocale()) ??
-            current($values) ?? '';
+            current($values) ?? null;
 
         if (is_string($value)) {
             $value = trim($value);
@@ -130,6 +138,10 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 
     /**
      * Get missing translations.
+     *
+     * @param  string|array<int,string>|Arrayable<int,string>  $locales Locales to examine.
+     *
+     * @return array<int,string> Locales without translations.
      */
     public function missing(string|array|Arrayable $locales): array
     {
@@ -149,22 +161,36 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 
     /**
      * Get present translations.
+     *
+     * @return array<int,string>
      */
     public function present(): array
     {
         return array_keys($this->values);
     }
 
+    /**
+     * @return array<string,TType>
+     */
     public function toArray(): array
     {
         return $this->values;
     }
 
-    public function jsonSerialize(): mixed
+    /**
+     * @return null|TType
+     */
+    #[ReturnTypeWillChange]
+    public function jsonSerialize()
     {
         return $this->isEmpty() ? null : $this->toString();
     }
 
+    /**
+     * @param  string|BackedEnum  $offset
+     *
+     * @return bool
+     */
     public function offsetExists(mixed $offset): bool
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
@@ -172,6 +198,11 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
         return isset($this->values[$offset]);
     }
 
+    /**
+     * @param  string|BackedEnum  $offset
+     *
+     * @return null|TType
+     */
     public function offsetGet(mixed $offset): mixed
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
@@ -179,6 +210,12 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
         return $this->values[$offset] ?? null;
     }
 
+    /**
+     * @param  string|BackedEnum  $offset
+     * @param  null|TType  $value
+     *
+     * @return void
+     */
     public function offsetSet(mixed $offset, mixed $value): void
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
@@ -186,6 +223,11 @@ class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
         $this->values[$offset] = $value;
     }
 
+    /**
+     * @param  string|BackedEnum  $offset
+     *
+     * @return void
+     */
     public function offsetUnset(mixed $offset): void
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
