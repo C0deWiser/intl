@@ -2,7 +2,7 @@
 
 namespace Codewiser\Intl;
 
-use Carbon\CarbonPeriod;
+use DatePeriod;
 use DateTimeInterface;
 use IntlDateFormatter;
 
@@ -10,7 +10,7 @@ class IntlDate
 {
     public string $locale;
 
-    public function __construct(public null|DateTimeInterface|CarbonPeriod $dateTime, ?string $locale = null)
+    public function __construct(public null|DateTimeInterface|DatePeriod $dateTime, ?string $locale = null)
     {
         $this->locale = $locale ?? app()->getLocale();
     }
@@ -26,7 +26,7 @@ class IntlDate
 
     public function format(int $dateType = IntlDateFormatter::NONE, int $timeType = IntlDateFormatter::NONE): bool|string
     {
-        if ($this->dateTime instanceof CarbonPeriod) {
+        if ($this->dateTime instanceof DatePeriod) {
 
             $start = $this->dateTime->start;
             $end = $this->dateTime->end;
