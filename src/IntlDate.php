@@ -26,12 +26,17 @@ class IntlDate
 
     public function format(int $dateType = IntlDateFormatter::NONE, int $timeType = IntlDateFormatter::NONE): bool|string
     {
-        if ($this->dateTime instanceof DatePeriod) {
+        $period = $this->dateTime;
 
-            $start = $this->dateTime->start;
-            $end = $this->dateTime->end;
+        if ($period instanceof DatePeriod) {
 
-            if ($dateType !== IntlDateFormatter::NONE && $start->isSameDay($end)) {
+            /** @var \DateTimeInterface $start */
+            $start = $period->start;
+            /** @var null|\DateTimeInterface $end */
+            $end = $period->end;
+            $date = 'Y.m.d';
+
+            if ($dateType !== IntlDateFormatter::NONE && $start->format($date) === $end?->format($date)) {
                 return __(':date from :start to :end', [
                     'date'  => $this->formatDateTime($start, $dateType, IntlDateFormatter::NONE),
                     'start' => $this->formatDateTime($start, IntlDateFormatter::NONE, $timeType),
