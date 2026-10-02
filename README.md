@@ -1,105 +1,182 @@
-# Intl helper
+# Intl Helper
 
-## Date and time localization
+`IntlManager` service is a helper to access main `intl` php functions.
 
-Format date and time in an app current locale.
+## Configuration
+
+As `IntlManager` is a proxy to any `intl` functions, it requires some 
+attributes to be pre-configured:
+
+* `Timezone` and `Calendar` — for [IntlDateFormatter](https://www.php.net/manual/en/intldateformatter.create.php)
+* `Currency` — for [NumberFormatter](https://www.php.net/manual/en/numberformatter.formatcurrency.php)
+* `Transliterator ID` — for [Transliterator](https://www.php.net/manual/en/transliterator.create.php)
+* `Locale` — for the most of them.
+
+Out-of-the-box `IntlManager` uses config values, so you may
+configure `IntlManager` with your app's `config/app.php` file.
 
 ```php
-intl(now())->short();
-# 12/13/52 3:30pm
-
-intl(now())->shortDate();
-# 12/13/52
-
-intl(now())->full();
-# Tuesday, April 12, 1952 AD 3:30:42pm PST
-
-intl(now())->fullTime();
-# 3:30:42pm PST
-
-$interval = now()->toPeriod(now()->addHour());
-intl($interval)->long();
-# January 12, 1952 from 3:30:30pm to 4:30:30pm
+timezone: config('app.timezone', 'UTC'),
+currency: config('app.currency', 'EUR'),
+calendar: config('app.calendar', \IntlDateFormatter::GREGORIAN),
+transliterator: config('app.transliterator', Transliterator::ANY_LATIN)
 ```
 
-## Number formatting
-
-Format numbers in an app current locale.
-
-```php
-intl(100)->currency('RUB');
-# €101.00
-
-intl(0.9)->percent();
-# 90 %
-
-intl(101)->spellout();
-# one hundred one
-```
-
-## Multilingual model attributes
-
-Such attribute stores in a database as a json object.
+Other way you may configure `IntlManager` in your application's 
+`AppServiceProvider` class:
 
 ```php
-use Illuminate\Database\Eloquent\Model;
-use Codewiser\Intl\Casts\Multilingual;
-use Illuminate\Support\Traits\Localizable;
+use Codewiser\Intl\IntlManager;
+use Codewiser\Intl\Intl\Transliterator;
 
 /**
- * @property Multilingual $name 
+ * Register any application services.
  */
-class User extends Model
+public function register(): void
 {
-    use Localizable;
-    
-    protected $casts = [
-        'name' => Multilingual::class
-    ];
+    $this->app->extend(IntlManager::class, fn (IntlManager $intl) => $intl
+        ->useCurrency('EUR')
+        ->useCalendar(\IntlDateFormatter::GREGORIAN)
+        ->useTransliterator(Transliterator::ANY_LATIN)
+    );
 }
 ```
 
-### Storing
+`intl()` is a synonym of `app(IntlManager::class)`.
 
-A new value will be implicitly stored in a current locale. 
+## DateTime
 
-However, you may explicitly define locale.
+Format date and time respecting the app's current locale.
 
 ```php
-// Set value in default locale
-$user->name = 'Michael';
+intl()->date($date)->format(
+    date: \IntlDateFormatter::FULL, 
+    time: \IntlDateFormatter::SHORT
+);
+// Saturday, April 12, 1952 at 3:30 PM
 
-// Set value with explicit locale
-$user->withLocale('en', fn() => $user->name = 'Michael');
-$user->withLocale('es', fn() => $user->name = 'Miguel');
+intl()->date($date)->format(date: \IntlDateFormatter::SHORT);
+// 4/12/52
 
-// Set values as array
-$user->name = [
-    'en' => 'Michael',
-    'es' => 'Miguel',
-];
+intl()->date($date)->format(time: \IntlDateFormatter::FULL);
+// 3:30:42 PM Coordinated Universal Time
 ```
 
-### Reading
+### Skeletons
 
-A value will be implicitly retrieved in a current locale. It would be enough 
-to properly apply `Accept-Language` header from a User-Agent — and user will 
-get content in a preferred language.
-
-If value for requested locale is empty, the first not empty value will be 
-returned.
-
-You may explicitly define locale.
+The styles above only offer the fixed `LONG`/`MEDIUM`/`SHORT` sets, so they
+cannot express "Sat, Oct 3" or "Q4 2026". A skeleton names the fields to 
+show and lets ICU 
+[choose the pattern](https://www.php.net/manual/en/intldatepatterngenerator.getbestpattern.php)
+the locale prefers:
 
 ```php
-// Get value in default locale
-$nameInCurrentLocale = (string) $user->name;
-$nameInCurrentLocale = $user->name->toString();
+intl()->date($date)->skeleton('yMMMEd');
+// Sat, Oct 3, 2026
 
-// Get value in given locale
-$nameInEn = $user->withLocale('en', fn() => $user->name);
-$nameInEs = $user->withLocale('es', fn() => $user->name);
+intl()->date($date)->skeleton('yQQQ');
+// Q4 2026
 
-// Get all values
-$user->name->toArray();
+intl()->date($date)->skeleton('Hm');
+// 15:04
+```
+
+## DatePeriod
+
+Format date period respecting the app's current locale.
+
+Date period may be passed either as `\DatePeriod` object,
+or as two `\DateTimeInterface` objects (array or variadic).
+
+```php
+$period = now()->toPeriod(now()->addHour());
+
+intl()
+    ->period($period)
+    ->format(\IntlDateFormatter::LONG, \IntlDateFormatter::LONG);
+# April 12, 1952 from 3:30:42 PM UTC to 4:30:42 PM UTC
+```
+
+### Translations
+
+The period sentences and the relative-time patterns come from the translations
+shipped with the package. Publish them to override:
+
+```shell
+php artisan vendor:publish --tag=intl
+```
+
+## Numbers
+
+```php
+// Shortcuts:
+
+// Use default app currency
+intl()->number(1234.56)->currency();      // €1,234.56
+
+// Override default currency
+intl()->number(1234.56)->currency('USD'); // $1,234.56
+
+intl()->number(1234.56)->decimal();       // 1,234.56
+intl()->number(0.564)->percent();         // 56.4%
+intl()->number(1234.56)->spellout();      // one thousand two hundred thirty-four point five six
+intl()->number(1234.56)->ordinal();       // 1,235th
+intl()->number(1234.56)->duration();      // 20:35
+intl()->number(1234.56)->scientific();    // 1.23456E3
+
+// Base:
+intl()->number(1234.56)->format(\NumberFormatter::DECIMAL);
+```
+
+## Names
+
+A locale and a currency both have names, which is what a language switcher and a
+currency selector need:
+
+```php
+intl()->locale('zh_Hant_TW')->display();
+// Chinese (Traditional, Taiwan)
+
+intl()->locale('pt_BR')->region();
+// Brazil
+
+// Override app locale
+intl()->locale('de')->display('ru');
+// немецкий
+
+// The app's default currency
+intl()->currency()->name();
+// Euro
+
+// Override app locale
+intl()->currency('RUB')->name('fr');
+// rouble russe
+
+intl()->currency('RUB')->symbol('ru');
+// ₽ in a Russian locale
+
+intl()->currency('RUB')->symbol('en');
+// RUB in an English one
+```
+
+## Transliteration
+
+Useful for turning a name into something a URL or a search box can carry:
+
+```php
+use Codewiser\Intl\Intl\Transliterator;
+
+intl()->text()->convert('Шёлковый пух', Transliterator::RUSSIAN_LATIN);
+// Shëlkovyy pukh
+
+intl()->text()->convert('北京', Transliterator::HAN_LATIN);
+// běi jīng
+```
+
+Normalization is the same machinery and matters because Unicode writes the same
+text in more than one way:
+
+```php
+intl()->text()->normalize("e\u{0301}");     // é as one code point
+intl()->text()->isNormalized($text);        // already in NFC?
 ```
