@@ -4,15 +4,13 @@ namespace Codewiser\Intl\Casts;
 
 use ArrayAccess;
 use BackedEnum;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Container\Container as ContainerContract;
-use Illuminate\Contracts\Foundation\Application as ApplicationContract;
+use Illuminate\Contracts\Database\Eloquent\Castable;
+use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Contracts\Support\Jsonable;
-use Illuminate\Foundation\Application;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Traits\Localizable;
+use Illuminate\Database\Eloquent\Casts\Json;
+use Illuminate\Database\Eloquent\Model;
 use JsonSerializable;
+use ReturnTypeWillChange;
 
 /**
  * Multilingual attribute holds an array of localized values:
@@ -23,141 +21,108 @@ use JsonSerializable;
  *  'es' => 'Miguel'
  * ]
  *
- * It may hold localized arrays too:
- *
- * [
- *   'en' => ['one', 'two'],
- *   'ru' => ['раз', 'два'],
- *   'es' => ['uno', 'dos']
- * ]
- *
- * Reading a casted attribute gives a plain value in the current locale:
- *
- *     $model->name; // 'Michael'
- *
- * Wrap the read to get this object instead:
- *
- *     $model->multilingual(fn () => $model->name); // Multilingual<string>
- *     $model->multilingual('name');                // Multilingual<string>
- *
- * @see Hydrate::of()
- *
- * @template TType of scalar|array
+ * @template TType
  */
-class Multilingual implements Arrayable, JsonSerializable, ArrayAccess
+class Multilingual implements Castable, Arrayable, JsonSerializable, ArrayAccess
 {
-    use Hydrate;
-    use Localizable;
+    protected array $values = [];
 
-    protected function app(): ContainerContract|ApplicationContract
+    public static ?string $currentLocale = null;
+    public static ?string $fallbackLocale = null;
+
+    public static function useLocale(string $locale, ?string $fallback_locale = null): void
     {
-        return Container::getInstance();
+        self::$currentLocale = $locale;
+        if ($fallback_locale) {
+            self::$fallbackLocale = $fallback_locale;
+        }
     }
 
     public function getLocale(): string
     {
-        $app = $this->app();
-
-        return locale_canonicalize($app instanceof Application ? $app->getLocale() : 'en');
+        return locale_canonicalize(self::$currentLocale ?? 'en');
     }
 
     public function getFallbackLocale(): string
     {
-        $app = $this->app();
-
-        return locale_canonicalize($app instanceof Application ? $app->getFallbackLocale() : 'en');
+        return locale_canonicalize(self::$fallbackLocale ?? 'en');
     }
 
     /**
-     * Locale keys are stored as given, so `en-GB` and `en_GB` may both be kept.
-     *
-     * @param  array<string, TType>  $values
-     * @param  bool  $strict  Do not fall back to the fallback locale or the first value.
+     * @param  null|TType|array<string,TType>|Arrayable<string,TType>  $values
      */
-    public function __construct(protected array $values, protected bool $strict = false)
+    public function __construct($values)
     {
-        //
+        if (is_string($values)) {
+            $values = [$this->getLocale() => $values];
+        }
+
+        if ($values instanceof Arrayable) {
+            $values = $values->toArray();
+        }
+
+        if (is_array($values)) {
+            $this->values = $values;
+        }
     }
 
     public function __toString(): string
     {
-        $value = $this->get() ?? '';
+        $value = $this->toString() ?? '';
 
-        if (! is_string($value)) {
+        if (is_array($value)) {
             $value = json_encode($value);
         }
 
-        return $value;
+        return (string) $value;
     }
 
     /**
      * Get value in current locale.
      *
      * @return null|TType
-     * @deprecated use get()
      */
     public function toString()
     {
-        return $this->get();
-    }
-
-    /**
-     * @param  array  $values
-     * @param  string  $locale  May be as locale, as language tag.
-     *
-     * @return null|mixed
-     */
-    protected function search(array $values, string $locale)
-    {
-        $locale = locale_canonicalize($locale);
-
-        // Direct match
-        if (isset($values[$locale])) {
-            return $values[$locale];
-        }
-
-        // If locale was a language tag?
-        $locale = ($i = strpos($locale, '_')) > 0
-            ? substr($locale, 0, $i)
-            : $locale;
-
-        // Filter matches
-        $matches = array_filter(
-            array_keys($values),
-            fn($lang) => locale_filter_matches($lang, $locale),
-        );
-
-        // From short to long
-        usort($matches, function ($a, $b) {
-            if (strlen($a) == strlen($b)) {
-                return 0;
-            }
-            return (strlen($a) < strlen($b)) ? -1 : 1;
-        });
-
-        if ($matches) {
-            // Return best match
-            return $values[$matches[0]];
-        }
-
-        return null;
-    }
-
-    /**
-     * Get value in current locale.
-     *
-     * @return null|TType
-     */
-    public function get()
-    {
         $values = $this->values;
 
-        $value = $this->search($values, $this->getLocale());
+        /**
+         * Keys may be: en, en_GB, en-GB
+         * Lang may be: en, en_GB, en-GB
+         */
+        $search = function (array $values, string $lang) {
+            // Direct match
+            if (isset($values[$lang])) {
+                return $values[$lang];
+            }
 
-        if ($value === null && ! $this->strict) {
-            // current([]) is false, not null, so the empty case needs a guard.
-            $value = $this->search($values, $this->getFallbackLocale())
-                ?? ($values === [] ? null : reset($values));
+            // Filter matches
+            $locales = array_filter(
+                array_keys($values),
+                fn($locale) => locale_filter_matches($locale, $lang),
+            );
+
+            // From short to long
+            usort($locales, function ($a, $b) {
+                if (strlen($a) == strlen($b)) {
+                    return 0;
+                }
+                return (strlen($a) < strlen($b)) ? -1 : 1;
+            });
+
+            // Return best match
+            return $locales ? $values[$locales[0]] : null;
+        };
+
+        reset($values);
+
+        $value =
+            $search($this->values, $this->getLocale()) ??
+            $search($this->values, $this->getFallbackLocale()) ??
+            current($values) ?? null;
+
+        if (is_string($value)) {
+            $value = trim($value);
         }
 
         return $value;
@@ -172,32 +137,32 @@ class Multilingual implements Arrayable, JsonSerializable, ArrayAccess
     }
 
     /**
-     * Get locales without translations.
+     * Get missing translations.
      *
-     * @param  string|array<array-key, string|BackedEnum>  $locales  Locales to inspect.
+     * @param  string|array<int,string>|Arrayable<int,string>  $locales Locales to examine.
      *
-     * @return array<int, string|BackedEnum> Locales without translations, re-indexed.
+     * @return array<int,string> Locales without translations.
      */
-    public function missing(string|BackedEnum|array $locales): array
+    public function missing(string|array|Arrayable $locales): array
     {
-        if (is_string($locales) || $locales instanceof BackedEnum) {
+        if (is_string($locales)) {
             $locales = [$locales];
         }
 
-        // search() canonicalizes and unwraps enums itself.
-        return array_values(array_filter(
+        if ($locales instanceof Arrayable) {
+            $locales = $locales->toArray();
+        }
+
+        return array_filter(
             $locales,
-            fn($locale) => $this->search(
-                    $this->values,
-                    $locale instanceof BackedEnum ? $locale->value : $locale
-                ) === null
-        ));
+            fn($locale) => !isset($this->values[$locale instanceof BackedEnum ? $locale->value : $locale])
+        );
     }
 
     /**
-     * Get locales with translations.
+     * Get present translations.
      *
-     * @return array<int, string>
+     * @return array<int,string>
      */
     public function present(): array
     {
@@ -205,53 +170,20 @@ class Multilingual implements Arrayable, JsonSerializable, ArrayAccess
     }
 
     /**
-     * Run a map over each of the items.
+     * @return array<string,TType>
      */
-    public function map(callable $callback): static
-    {
-        return new static(Arr::map($this->values, $callback), $this->strict);
-    }
-
-    /**
-     * Map the values into a new class.
-     *
-     * @template TMapIntoValue
-     *
-     * @param  class-string<TMapIntoValue>  $class
-     *
-     * @return static<TMapIntoValue>
-     */
-    public function mapInto(string $class): static
-    {
-        return $this->map(fn ($value) => new $class($value));
-    }
-
-    public function all(): array
+    public function toArray(): array
     {
         return $this->values;
     }
 
     /**
-     * @return array<string, TType>
+     * @return null|TType
      */
-    public function toArray(): array
+    #[ReturnTypeWillChange]
+    public function jsonSerialize()
     {
-        return array_map(
-            fn($value) => $value instanceof Arrayable ? $value->toArray() : $value,
-            $this->all()
-        );
-    }
-
-    public function jsonSerialize(): ?array
-    {
-        return $this->isEmpty()
-            ? null
-            : array_map(fn($value) => match (true) {
-                $value instanceof JsonSerializable => $value->jsonSerialize(),
-                $value instanceof Jsonable         => json_decode($value->toJson(), true),
-                $value instanceof Arrayable        => $value->toArray(),
-                default                            => $value,
-            }, $this->all());
+        return $this->isEmpty() ? null : $this->toString();
     }
 
     /**
@@ -263,9 +195,7 @@ class Multilingual implements Arrayable, JsonSerializable, ArrayAccess
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
 
-        // Resolved through search(), so this agrees with offsetGet(): a raw
-        // language tag stored as-is is still reported as present.
-        return $this->search($this->values, $offset) !== null;
+        return isset($this->values[$offset]);
     }
 
     /**
@@ -276,9 +206,8 @@ class Multilingual implements Arrayable, JsonSerializable, ArrayAccess
     public function offsetGet(mixed $offset): mixed
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
-        $offset = locale_canonicalize($offset);
 
-        return $this->search($this->values, $offset);
+        return $this->values[$offset] ?? null;
     }
 
     /**
@@ -290,7 +219,6 @@ class Multilingual implements Arrayable, JsonSerializable, ArrayAccess
     public function offsetSet(mixed $offset, mixed $value): void
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
-        $offset = locale_canonicalize($offset);
 
         $this->values[$offset] = $value;
     }
@@ -303,10 +231,56 @@ class Multilingual implements Arrayable, JsonSerializable, ArrayAccess
     public function offsetUnset(mixed $offset): void
     {
         $offset = $offset instanceof BackedEnum ? $offset->value : $offset;
-        $offset = locale_canonicalize($offset);
 
         if (isset($this->values[$offset])) {
             unset($this->values[$offset]);
         }
+    }
+
+    public static function castUsing(array $arguments): CastsAttributes
+    {
+        return new class ($arguments) implements CastsAttributes {
+
+            public function __construct(protected array $arguments)
+            {
+                //
+            }
+
+            public function get(Model $model, string $key, mixed $value, array $attributes): ?Multilingual
+            {
+                if (is_string($value)) {
+                    $value = Json::decode($value);
+                }
+
+                return is_array($value) ? new Multilingual($value) : null;
+            }
+
+            public function set(Model $model, string $key, mixed $value, array $attributes): ?string
+            {
+                if ($value instanceof Multilingual) {
+                    $value = $value->toArray();
+                }
+
+                if (is_array($value) && !array_is_list($value)) {
+                    // Full replace
+                    $values = $value;
+                } else {
+                    // Replace current locale
+                    $values = $attributes[$key] ?? null;
+                    $values = new Multilingual($values ? Json::decode($attributes[$key]) : []);
+                    $values[$values->getLocale()] = $value;
+                    $values = $values->toArray();
+                }
+
+                $values = array_filter($values);
+
+                return $values ? Json::encode($values) : null;
+            }
+        };
+    }
+
+    public static function array(): string
+    {
+        return MultilingualArray::class;
     }
 }

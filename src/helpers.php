@@ -1,11 +1,20 @@
 <?php
 
-
-use Codewiser\Intl\IntlManager;
+use Codewiser\Intl\IntlDate;
+use Codewiser\Intl\IntlNumber;
 
 if (!function_exists('intl')) {
-    function intl(): IntlManager
+    /**
+     * Localize numbers and dates in an app current locale.
+     */
+    function intl(null|float|int|string|DateTimeInterface|DatePeriod|\Carbon\CarbonPeriod $value): IntlNumber|IntlDate
     {
-        return app(IntlManager::class);
+        if ($value instanceof \Carbon\CarbonPeriod) {
+            $value = $value->toDatePeriod();
+        }
+
+        return is_scalar($value)
+            ? new IntlNumber($value)
+            : new IntlDate($value);
     }
 }
