@@ -1,28 +1,28 @@
 # Intl Helper
 
-`IntlManager` service is a helper to access main `intl` php functions.
+`IntlManager` service is a helper to access main `intl` PHP functions.
 
 ## Configuration
 
-As `IntlManager` is a proxy to any `intl` functions, it requires some 
+As `IntlManager` is a proxy to any `intl` functions, it requires some
 attributes to be pre-configured:
 
 * `Timezone` and `Calendar` — for [IntlDateFormatter](https://www.php.net/manual/en/intldateformatter.create.php)
 * `Currency` — for [NumberFormatter](https://www.php.net/manual/en/numberformatter.formatcurrency.php)
 * `Transliterator ID` — for [Transliterator](https://www.php.net/manual/en/transliterator.create.php)
-* `Locale` — for the most of them.
+* `Locale` — for most of them.
 
 Out-of-the-box `IntlManager` uses config values, so you may
-configure `IntlManager` with your app's `config/app.php` file.
+configure `IntlManager` in your app's `config/app.php` file:
 
 ```php
-timezone: config('app.timezone', 'UTC'),
-currency: config('app.currency', 'EUR'),
-calendar: config('app.calendar', \IntlDateFormatter::GREGORIAN),
-transliterator: config('app.transliterator', Transliterator::ANY_LATIN)
+config('app.timezone', 'UTC'),
+config('app.currency', 'EUR'),
+config('app.calendar', \IntlDateFormatter::GREGORIAN),
+config('app.transliterator', Transliterator::ANY_LATIN)
 ```
 
-Other way you may configure `IntlManager` in your application's 
+Another way you may configure `IntlManager` in your application's
 `AppServiceProvider` class:
 
 ```php
@@ -50,7 +50,7 @@ Format date and time respecting the app's current locale.
 
 ```php
 intl()->date($date)->format(
-    date: \IntlDateFormatter::FULL, 
+    date: \IntlDateFormatter::FULL,
     time: \IntlDateFormatter::SHORT
 );
 // Saturday, April 12, 1952 at 3:30 PM
@@ -62,13 +62,25 @@ intl()->date($date)->format(time: \IntlDateFormatter::FULL);
 // 3:30:42 PM Coordinated Universal Time
 ```
 
+Date formatter has a few shorthand functions:
+
+```php
+intl()->date($date)->short();
+// 4/12/52 3:30 PM
+
+intl()->date($date)->full();
+// Saturday, April 12, 1952 at 3:30:42 PM Coordinated Universal Time
+
+// etc.
+```
+
 ### Skeletons
 
 The styles above only offer the fixed `LONG`/`MEDIUM`/`SHORT` sets, so they
-cannot express "Sat, Oct 3" or "Q4 2026". A skeleton names the fields to 
-show and lets ICU 
+cannot express "Sat, Oct 3" or "Q4 2026". A skeleton names the fields to
+show and lets ICU
 [choose the pattern](https://www.php.net/manual/en/intldatepatterngenerator.getbestpattern.php)
-the locale prefers:
+that the locale prefers:
 
 ```php
 intl()->date($date)->skeleton('yMMMEd');
@@ -85,7 +97,7 @@ intl()->date($date)->skeleton('Hm');
 
 Format date period respecting the app's current locale.
 
-Date period may be passed either as `\DatePeriod` object,
+Date period may be passed either as a `\DatePeriod` object,
 or as two `\DateTimeInterface` objects (array or variadic).
 
 ```php
@@ -94,13 +106,13 @@ $period = now()->toPeriod(now()->addHour());
 intl()
     ->period($period)
     ->format(\IntlDateFormatter::LONG, \IntlDateFormatter::LONG);
-# April 12, 1952 from 3:30:42 PM UTC to 4:30:42 PM UTC
+// April 12, 1952 from 3:30:42 PM UTC to 4:30:42 PM UTC
 ```
 
 ### Translations
 
-The period sentences and the relative-time patterns come from the translations
-shipped with the package. Publish them to override:
+The period sentences come from the translations shipped with the package.
+Publish them to override:
 
 ```shell
 php artisan vendor:publish --tag=intl
@@ -134,13 +146,16 @@ A locale and a currency both have names, which is what a language switcher and a
 currency selector need:
 
 ```php
+// The app's default locale
+intl()->locale()->display();
+// English
+
 intl()->locale('zh_Hant_TW')->display();
 // Chinese (Traditional, Taiwan)
 
 intl()->locale('pt_BR')->region();
 // Brazil
 
-// Override app locale
 intl()->locale('de')->display('ru');
 // немецкий
 
@@ -148,7 +163,6 @@ intl()->locale('de')->display('ru');
 intl()->currency()->name();
 // Euro
 
-// Override app locale
 intl()->currency('RUB')->name('fr');
 // rouble russe
 
